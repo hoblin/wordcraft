@@ -108,6 +108,9 @@ What the ids don't say:
   Word: after a formatted heading, format.resetChar before typing goes back to the style's.
 - format.set, para.set and styles.modify take CharProps and ParaProps objects; `wordcraft-cli
   help types` lists their fields.
+- Answers count the way positions do: `offset 10` in an answer is `\"off\": 10` in a position, in
+  bytes, so a letter like ä counts 2. Text in an answer longer than 60 characters is shown by its
+  ends, as in `start … end` (141 bytes); document.paragraph {\"path\": [n]} gives a paragraph whole.
 - --author names who tracked changes and comments are by.
 
 If a command fails, run stops there and saves nothing. Without --print, run ends with one line,
@@ -210,7 +213,8 @@ chain gives. Lengths are points; `color` is \"RRGGBB\", the other colours [r, g,
 
 Pos, a position in the document (caret.set, select.range):
   {\"story\": \"body\" | {\"part\": id}, \"path\": [block] or [block, row, cell, paragraph], \"off\": byte offset}
-  {\"block\": n, \"off\": n} is a shorthand for a body paragraph. Blocks and offsets count from 0.
+  {\"block\": n, \"off\": n} is a shorthand for a body paragraph. Blocks and offsets count from 0;
+  an offset is in bytes of the paragraph's text, and answers count the same way.
   A Story on its own (document.paragraph, select.text) is \"body\" or {\"part\": id}.
 
 CharProps (format.set {\"props\": …}, styles.modify {\"chr\": …}):

@@ -6,7 +6,7 @@ It listens on `127.0.0.1` only. Send one JSON object per line, with the window's
 
 ```json
 {"id": 1, "key": "…", "method": "engine.execute", "params": {"command": "text.insert", "params": {"text": "Hello"}}}
-{"id": 1, "ok": true, "result": "paragraph 0 now reads `Hello`; the caret is at paragraph 0, offset 5"}
+{"id": 1, "ok": true, "result": "inserted `Hello` into paragraph 0, offsets 0–5; the caret is at paragraph 0, offset 5"}
 ```
 
 Errors come back as `{"id": …, "ok": false, "error": "message"}`. A failed command leaves the

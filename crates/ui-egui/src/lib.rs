@@ -647,6 +647,7 @@ impl WordApp {
     /// [`Self::execute`] for an agent reading the answer: parameters the command doesn't take are
     /// refused and an edit answers with what it changed ([`wordcraft_engine::Session::call`]).
     pub fn call(&mut self, id: &str, params: Value) -> Result<Value, String> {
+        self.session.check_params(id, &params)?;
         self.dispatch(id, params, wordcraft_engine::Session::call)
     }
 
@@ -4348,10 +4349,12 @@ mod tests {
             control::Outcome::Screenshot { .. } => panic!("not a screenshot"),
         };
         let r = answer(&mut a, json!({"command": "text.insert", "params": {"text": "Hi"}}));
-        assert_eq!(r, json!({"ok": true, "result": "paragraph 0 now reads `Hi`; the caret is at paragraph 0, offset 2"}));
+        assert_eq!(r, json!({"ok": true, "result": "inserted `Hi` into paragraph 0, offsets 0–2; the caret is at paragraph 0, offset 2"}));
         let r = answer(&mut a, json!({"command": "text.insert", "params": {"content": "Hi"}}));
         assert_eq!(r["ok"], false);
         assert!(r["error"].as_str().unwrap().starts_with("`text.insert` was given `content`, which it doesn't take."), "{r}");
+        let r = answer(&mut a, json!({"command": "file.autosave", "params": {"bogus": true}}));
+        assert!(r["error"].as_str().unwrap().starts_with("`file.autosave` was given `bogus`, which it doesn't take."), "{r}");
         assert_eq!(body_text(&a), "Hi");
     }
 }

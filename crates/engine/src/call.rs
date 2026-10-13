@@ -33,13 +33,15 @@ impl Session {
 
 /// The error for a command id that isn't one, naming the ids like it.
 pub fn unknown_command(reg: &Registry, id: &str) -> String {
-    match similar_commands(reg, id).as_slice() {
-        [] => format!("`{id}` is not a command."),
-        like => format!("`{id}` is not a command; commands named like it: {}.", like.join(", ")),
+    let like = similar_commands(reg, id);
+    match like.len() {
+        0 => format!("`{id}` is not a command."),
+        n if n > 8 => format!("`{id}` is not a command; commands named like it: {} and {} more.", like[..8].join(", "), n - 8),
+        _ => format!("`{id}` is not a command; commands named like it: {}.", like.join(", ")),
     }
 }
 
-/// Command ids like `id`, up to eight: the same last segment first, then ids containing it.
+/// Command ids like `id`: the same last segment first, then ids containing it.
 pub fn similar_commands(reg: &Registry, id: &str) -> Vec<&'static str> {
     let q = id.trim().to_lowercase();
     if q.is_empty() {
@@ -61,7 +63,15 @@ pub fn similar_commands(reg: &Registry, id: &str) -> Vec<&'static str> {
     };
     let mut like: Vec<(u8, &'static str)> = reg.all().iter().filter_map(|c| rank(c.id).map(|r| (r, c.id))).collect();
     like.sort_by_key(|(r, _)| *r);
-    like.into_iter().map(|(_, c)| c).take(8).collect()
+    like.into_iter().map(|(_, c)| c).collect()
+}
+
+impl Session {
+    /// Refuse `params` a registered command `id` doesn't take, as [`Self::call`] does; an id the
+    /// registry doesn't know passes, for the caller to answer.
+    pub fn check_params(&self, id: &str, params: &Value) -> Result<(), String> {
+        self.registry.get(id).map_or(Ok(()), |spec| check_params(spec, params))
+    }
 }
 
 pub(crate) fn check_params(spec: &CommandSpec, params: &Value) -> Result<(), String> {

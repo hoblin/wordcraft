@@ -40,6 +40,13 @@ pub(crate) fn changes(before: &Before, s: &Session) -> String {
     if a.comments.len() != b.comments.len() {
         said.push(format!("{} (was {})", count(b.comments.len(), "comment"), a.comments.len()));
     }
+    for (id, c) in &b.comments {
+        match a.comments.get(id) {
+            Some(old) if old.resolved != c.resolved => said.push(format!("{} comment {id}", if c.resolved { "resolved" } else { "reopened" })),
+            Some(old) if old != c => said.push(format!("changed comment {id}")),
+            _ => {}
+        }
+    }
     if a.revisions.len() != b.revisions.len() {
         said.push(format!("{} tracked", count(b.revisions.len(), "revision")));
     }
@@ -74,14 +81,13 @@ impl Range {
 fn blocks(a: &Blocks, b: &Blocks, place: &str, range: Option<Range>) -> Vec<String> {
     let same = |x: &Arc<Block>, y: &Arc<Block>| Arc::ptr_eq(x, y) || x == y;
     if a.len() == b.len() {
-        return a
-            .iter()
-            .zip(b)
-            .enumerate()
-            .filter(|(_, (x, y))| !same(x, y))
-            .take(4)
-            .map(|(i, (x, y))| block_change(i, x, y, place, range.filter(|r| r.block == i)))
-            .collect();
+        let changed: Vec<(usize, (&Arc<Block>, &Arc<Block>))> = a.iter().zip(b).enumerate().filter(|(_, (x, y))| !same(x, y)).collect();
+        let mut said: Vec<String> =
+            changed.iter().take(4).map(|(i, (x, y))| block_change(*i, x, y, place, range.filter(|r| r.block == *i))).collect();
+        if changed.len() > 4 {
+            said.push(format!("and {} more changed {}", changed.len() - 4, kind_of(changed.iter().skip(4).map(|(_, (_, y))| *y))));
+        }
+        return said;
     }
     let head = a.iter().zip(b).take_while(|(x, y)| same(x, y)).count();
     let tail = a.iter().rev().zip(b.iter().rev()).take(a.len().min(b.len()) - head).take_while(|(x, y)| same(x, y)).count();
@@ -96,7 +102,15 @@ fn blocks(a: &Blocks, b: &Blocks, place: &str, range: Option<Range>) -> Vec<Stri
         (n, _) => vec![format!("replaced {} at {} with {}", count(n, kind(gone)), name(gone), count(added.len(), kind(added)))],
     };
     said.extend(added.iter().enumerate().take(3).map(|(i, bl)| block_summary(head + i, bl, place)));
+    if added.len() > 3 {
+        said.push(format!("and {} more", added.len() - 3));
+    }
     said
+}
+
+fn kind_of<'a>(blocks: impl Iterator<Item = &'a Arc<Block>>) -> String {
+    let blocks: Vec<Arc<Block>> = blocks.cloned().collect();
+    format!("{}s", kind(&blocks))
 }
 
 fn kind(blocks: &[Arc<Block>]) -> &'static str {
@@ -127,7 +141,7 @@ fn para_change(i: usize, a: &Paragraph, b: &Paragraph, place: &str, range: Optio
             (false, true) if !visible(&a.text).is_empty() => format!("replaced {} in {name} with {}", quote(&a.text), objects(added.into_iter())),
             (false, true) => format!("{name} now holds {}", objects(added.into_iter())),
             (false, false) => format!("added {} to {name}, which now reads {}", objects(added.into_iter()), quote(&b.text)),
-            _ => format!("{name} now reads {}", quote(&b.text)),
+            _ => text_change(&name, &a.text, &b.text),
         };
     }
     if a.objects.len() != b.objects.len() {
@@ -156,6 +170,26 @@ fn para_change(i: usize, a: &Paragraph, b: &Paragraph, place: &str, range: Optio
         };
     }
     format!("changed {name}")
+}
+
+fn text_change(name: &str, a: &str, b: &str) -> String {
+    let head = a.char_indices().zip(b.char_indices()).take_while(|((_, x), (_, y))| x == y).last().map(|((i, c), _)| i + c.len_utf8()).unwrap_or(0);
+    let tail = a
+        .get(head..)
+        .unwrap_or_default()
+        .char_indices()
+        .rev()
+        .zip(b.get(head..).unwrap_or_default().char_indices().rev())
+        .take_while(|((_, x), (_, y))| x == y)
+        .map(|((_, c), _)| c.len_utf8())
+        .sum::<usize>();
+    let gone = a.get(head..a.len() - tail).unwrap_or_default();
+    let came = b.get(head..b.len() - tail).unwrap_or_default();
+    match (gone.is_empty(), came.is_empty()) {
+        (true, false) => format!("inserted {} into {name}, offsets {head}–{}", quote(came), head + came.len()),
+        (false, true) => format!("deleted {} from {name}, offsets {head}–{}", quote(gone), head + gone.len()),
+        _ => format!("replaced {} with {} in {name}, offsets {head}–{}", quote(gone), quote(came), head + came.len()),
+    }
 }
 
 fn run_diff(a: &Paragraph, b: &Paragraph) -> Vec<String> {
@@ -269,7 +303,19 @@ fn selection(s: &Session) -> String {
         }
         return format!("selected {} in {}{story}, offsets {}–{}", quote(text), place(&a.path), a.off, b.off);
     }
-    format!("selected from {}, offset {} to {}, offset {}{story}", place(&a.path), a.off, place(&b.path), b.off)
+    let first = s.doc.para_at(&a).and_then(|p| p.text.get(a.off..)).unwrap_or_default();
+    let last = s.doc.para_at(&b).and_then(|p| p.text.get(..b.off)).unwrap_or_default();
+    let head: String = first.chars().take(30).collect();
+    let tail: String = last.chars().rev().take(25).collect::<Vec<_>>().into_iter().rev().collect();
+    format!(
+        "selected from {}, offset {} (starting {}) to {}, offset {} (ending {}){story}",
+        place(&a.path),
+        a.off,
+        quote(head.trim_end()),
+        place(&b.path),
+        b.off,
+        quote(tail.trim_start())
+    )
 }
 
 fn place(path: &Path) -> String {
@@ -358,18 +404,25 @@ fn shown(v: &Value) -> String {
         }
         other => {
             let s = other.to_string();
-            if s.chars().count() > 80 { format!("{}…", s.chars().take(80).collect::<String>()) } else { s }
+            match s.char_indices().nth(80) {
+                Some((i, _)) => format!("{}… ({} chars)", s.get(..i).unwrap_or_default(), s.chars().count()),
+                None => s,
+            }
         }
     }
 }
 
 fn quote(text: &str) -> String {
-    let text = text.replace(['\r', '\u{2029}'], "¶").replace(wordcraft_doc::para::OBJ, "[object]");
-    match text.char_indices().nth(60) {
-        Some((i, _)) => format!("`{}…`", text.get(..i).unwrap_or_default()),
-        None if text.is_empty() => "nothing (it is empty)".into(),
-        None => format!("`{text}`"),
+    let shown = text.replace(['\r', '\u{2029}'], "¶").replace(wordcraft_doc::para::OBJ, "[object]");
+    if shown.is_empty() {
+        return "nothing (it is empty)".into();
     }
+    if shown.chars().count() <= 60 {
+        return format!("`{shown}`");
+    }
+    let head: String = shown.chars().take(30).collect();
+    let tail: String = shown.chars().rev().take(25).collect::<Vec<_>>().into_iter().rev().collect();
+    format!("`{} … {}` ({} bytes)", head.trim_end(), tail.trim_start(), text.len())
 }
 
 fn count(n: usize, what: &str) -> String {

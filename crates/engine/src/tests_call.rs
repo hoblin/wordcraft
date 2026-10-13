@@ -75,7 +75,7 @@ fn a_call_that_answers_with_the_selection_says_what_changed() {
     let mut s = s();
     assert_eq!(
         said(&mut s, "text.insert", json!({"text": "Bondata Oy"})),
-        "paragraph 0 now reads `Bondata Oy`; the caret is at paragraph 0, offset 10"
+        "inserted `Bondata Oy` into paragraph 0, offsets 0–10; the caret is at paragraph 0, offset 10"
     );
     assert_eq!(said(&mut s, "select.paragraph", json!({})), "selected `Bondata Oy` in paragraph 0, offsets 0–10");
     assert_eq!(said(&mut s, "format.font", json!({"name": "Georgia"})), "formatted paragraph 0: font Georgia");
@@ -102,7 +102,7 @@ fn a_part_and_an_object_are_named_in_the_answer() {
     assert_eq!(said(&mut s, "caret.end", json!({})), "the caret is at paragraph 0 of header 1, offset 7");
     assert_eq!(
         said(&mut s, "text.insert", json!({"text": " Oy"})),
-        "paragraph 0 of header 1 now reads `Bondata Oy`; the caret is at paragraph 0 of header 1, offset 10"
+        "inserted ` Oy` into paragraph 0 of header 1, offsets 7–10; the caret is at paragraph 0 of header 1, offset 10"
     );
     assert_eq!(said(&mut s, "insert.closeHeader", json!({})), "the caret is at paragraph 0, offset 0");
     let r = s.call("insert.table", &json!({"rows": 2, "cols": 3})).unwrap();
@@ -166,4 +166,39 @@ fn hostile_params_never_panic_through_call() {
             let _ = s.layout();
         }
     }
+}
+
+#[test]
+fn long_text_is_shown_by_its_ends_with_its_length() {
+    let mut s = s();
+    let text = "Thank you for running the autumn survey with us. 84% of your people answered, 12 points more than in spring, and the full report is attached.";
+    assert_eq!(
+        said(&mut s, "text.insert", json!({"text": text})),
+        "inserted `Thank you for running the autu … full report is attached.` (141 bytes) into paragraph 0, offsets 0–141; the caret is at paragraph 0, offset 141"
+    );
+    assert_eq!(said(&mut s, "text.backspace", json!({})), "deleted `.` from paragraph 0, offsets 140–141; the caret is at paragraph 0, offset 140");
+    assert_eq!(said(&mut s, "edit.undo", json!({})), "inserted `.` into paragraph 0, offsets 140–141; the caret is at paragraph 0, offset 141");
+    s.call("select.range", &json!({"anchor": {"block": 0, "off": 0}, "focus": {"block": 0, "off": 5}})).unwrap();
+    assert_eq!(
+        said(&mut s, "text.insert", json!({"text": "Cheers"})),
+        "replaced `Thank` with `Cheers` in paragraph 0, offsets 0–6; the caret is at paragraph 0, offset 6"
+    );
+    s.call("caret.docEnd", &json!({})).unwrap();
+    s.call("text.newParagraph", &json!({})).unwrap();
+    s.call("text.insert", &json!({"text": "Kind regards"})).unwrap();
+    assert_eq!(
+        said(&mut s, "select.all", json!({})),
+        "selected from paragraph 0, offset 0 (starting `Cheers you for running the aut`) to paragraph 1, offset 12 (ending `Kind regards`)"
+    );
+}
+
+#[test]
+fn resolving_a_comment_is_said() {
+    let mut s = s();
+    s.call("text.insert", &json!({"text": "Hello"})).unwrap();
+    s.call("select.all", &json!({})).unwrap();
+    s.call("review.newComment", &json!({"text": "Check this"})).unwrap();
+    let id = s.doc.comments.keys().next().copied().unwrap();
+    assert_eq!(said(&mut s, "review.resolveComment", json!({"id": id})), format!("resolved comment {id}"));
+    assert_eq!(said(&mut s, "review.resolveComment", json!({"id": id, "value": false})), format!("reopened comment {id}"));
 }

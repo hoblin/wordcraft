@@ -123,7 +123,10 @@ fn headless_sessions_keep_the_dictionary_in_memory() {
 #[test]
 fn execute_answers_in_words_and_refuses_unknown_parameters() {
     let mut s = Server::new(Box::new(Headless::default()));
-    assert_eq!(tool(&mut s, "type_text", json!({"text": "Hello"})), json!("paragraph 0 now reads `Hello`; the caret is at paragraph 0, offset 5"));
+    assert_eq!(
+        tool(&mut s, "type_text", json!({"text": "Hello"})),
+        json!("inserted `Hello` into paragraph 0, offsets 0–5; the caret is at paragraph 0, offset 5")
+    );
     assert_eq!(tool(&mut s, "execute", json!({"command": "select.all"})), json!("selected `Hello` in paragraph 0, offsets 0–5"));
     let r = call(&mut s, 9, "tools/call", json!({"name": "execute", "arguments": {"command": "text.insert", "params": {"content": "x"}}}));
     assert_eq!(r["result"]["isError"], true);

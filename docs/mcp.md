@@ -83,7 +83,7 @@ files it was given rather than guarding against other software on the computer.
 | Tool | What it does |
 |---|---|
 | `list_commands` | every command (filter with `query`) — over 600 of them |
-| `execute` | run one command: `{command: "insert.table", params: {rows: 3, cols: 4}}`. A parameter the command doesn't take is refused, naming the ones it does. An edit answers in words with what it changed, e.g. `paragraph 0 now reads `Hello`; the caret is at paragraph 0, offset 5` or `nothing changed`; a mutating command that answers with JSON of its own carries the same under `changed` |
+| `execute` | run one command: `{command: "insert.table", params: {rows: 3, cols: 4}}`. A parameter the command doesn't take is refused, naming the ones it does. An edit answers in words with what it changed, e.g. `inserted `Hello` into paragraph 0, offsets 0–5; the caret is at paragraph 0, offset 5` or `nothing changed`; a mutating command that answers with JSON of its own carries the same under `changed` |
 | `batch` | run several commands in order |
 | `new_document` | blank, sample, letter, resume, report |
 | `open_document` / `save_document` | docx, doc (open only), odt, rtf, html, md, tex, txt, json; save also pdf, png |

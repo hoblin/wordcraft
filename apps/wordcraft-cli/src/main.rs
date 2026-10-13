@@ -101,7 +101,7 @@ fn steps(args: &[String], reg: &wordcraft_engine::Registry) -> Result<Vec<(Strin
 
 fn shown(text: &str) -> String {
     match text.char_indices().nth(200) {
-        Some((i, _)) => format!("{}…", text.get(..i).unwrap_or_default()),
+        Some((i, _)) => format!("{}… ({} chars)", text.get(..i).unwrap_or_default(), text.chars().count()),
         None => text.to_string(),
     }
 }
@@ -167,10 +167,12 @@ fn validate_options(command: &str, args: &[String], specs: &[OptionSpec]) -> Res
                     "{command} was given `--{name}`, which it doesn't take. {command} {takes}; `wordcraft-cli help {command}` explains them."
                 ));
             };
-            if spec.takes_value && args.get(i + 1).is_some_and(|value| !value.starts_with("--")) {
+            if !spec.takes_value {
+                i += 1;
+            } else if args.get(i + 1).is_some_and(|value| !value.starts_with("--")) {
                 i += 2;
             } else {
-                i += 1;
+                return Err(format!("{command} was given `{arg}` without a value; `wordcraft-cli help {command}` says what it takes."));
             }
         } else {
             i += 1;
@@ -609,7 +611,10 @@ mod tests {
         assert!(validate_options("commands", &args(&["--json"]), COMMANDS_OPTIONS).is_ok());
         assert!(validate_options("parity", &args(&["--markdown"]), PARITY_OPTIONS).is_ok());
         assert!(validate_options("mcp", &args(&["--connect", "127.0.0.1:9000"]), MCP_OPTIONS).is_ok());
-        assert!(validate_options("render", &args(&["in.docx", "out.png", "--page"]), RENDER_OPTIONS).is_ok());
+        assert_eq!(
+            validate_options("render", &args(&["in.docx", "out.png", "--page"]), RENDER_OPTIONS),
+            Err("render was given `--page` without a value; `wordcraft-cli help render` says what it takes.".into())
+        );
         assert!(
             validate_options(
                 "zotero",

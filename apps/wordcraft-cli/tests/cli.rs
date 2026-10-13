@@ -169,7 +169,7 @@ fn print_shows_what_each_command_did() {
             "--cmd",
             "insert.header={\"text\":\"Bondata\"}",
         ])),
-        "text.insert → paragraph 0 now reads `Bondata Oy`; the caret is at paragraph 0, offset 10\n\
+        "text.insert → inserted `Bondata Oy` into paragraph 0, offsets 0–10; the caret is at paragraph 0, offset 10\n\
          select.paragraph → selected `Bondata Oy` in paragraph 0, offsets 0–10\n\
          format.size → formatted paragraph 0: size 28\n\
          insert.header → {\"changed\":\"added header 1 reading `Bondata`; the caret is at paragraph 0 of header 1, offset 0\",\"story\":1}\n\
@@ -194,6 +194,10 @@ fn options_and_values_are_checked_before_anything_runs() {
     assert_eq!(
         stderr(&cli(&["run", "--cmd", "text.insert", "--out", "x.docx"])),
         "wordcraft-cli: run was given `--out`, which it doesn't take. run takes --file, --template, --cmd, --save, --page, --scale, --print or --author; `wordcraft-cli help run` explains them.\n"
+    );
+    assert_eq!(
+        stderr(&cli(&["run", "--save", "--print"])),
+        "wordcraft-cli: run was given `--save` without a value; `wordcraft-cli help run` says what it takes.\n"
     );
     assert_eq!(
         stderr(&cli(&["run", "--template", "nope"])),
