@@ -1,6 +1,6 @@
 # WordCraft architecture
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-10 · **Change:** minor (`proof` is per language: English and Polish; previously major: first committed version; `plan/architecture.md` is local-only) · **Target:** Microsoft Word (Microsoft 365) for Mac 16.113.4
+> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-10-13 · **Change:** minor (the fork's CI: a `v*-bondata.*` tag releases Linux x86_64; previously minor: `proof` is per language) · **Target:** Microsoft Word (Microsoft 365) for Mac 16.113.4
 
 How WordCraft is built today (origin/main `40c5d51`). The longer design notes in
 `plan/architecture.md` are gitignored and local to the original author's machine; this file is the
@@ -57,12 +57,13 @@ winit or rfd.
 - `cargo xtask ci`: fmt, clippy `-D warnings`, tests, asset attribution, layering, wasm build.
 - `cargo xtask parity` regenerates [`parity-checklist.md`](parity-checklist.md); a test keeps the
   catalog percentage above a floor that only rises.
-- GitHub Actions on PRs: packaging lint, and FreeBSD / Windows ARM64 when build files change;
-  release builds on pushes to `release`.
+- GitHub Actions on PRs: packaging lint and the printing/UI tests; a `v*-bondata.*` tag releases
+  the Linux x86_64 build ([`releasing.md`](releasing.md)).
 
 ## Revision history
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-13 | minor | CI: the fork's own release workflow (Linux x86_64 on a `v*-bondata.*` tag) replaces upstream's release, FreeBSD and Windows ARM64 workflows |
 | 2026-10-10 | minor | `proof`: proofing languages (English, Polish), affix engine, Polish patterns; layout and engine route each run by its language |
 | 2026-10-10 | major | First committed architecture doc, from the crates' sources and `AGENTS.md` |
