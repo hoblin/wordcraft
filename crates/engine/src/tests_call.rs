@@ -41,6 +41,10 @@ fn a_call_refuses_parameters_the_command_does_not_take() {
         said(&mut s, "format.size", json!({})),
         "invalid parameters for `format.size`: `size` (number) is required. `format.size` takes {\"size\": number}."
     );
+    assert_eq!(
+        said(&mut s, "styles.modify", json!({"style": "Normal", "chr": {"color": [1, 2, 3]}})),
+        "invalid parameters for `styles.modify`: `chr` is not a CharProps: invalid type: sequence, expected string or map. Lengths are points, `color` is \"RRGGBB\", other colours [r, g, b]; `help types` lists the fields. `styles.modify` takes {\"style\": string, \"chr\"?: CharProps, \"para\"?: ParaProps, \"name\"?: string, \"next\"?: string}."
+    );
     assert_eq!(s.doc.plain_text(wordcraft_doc::StoryRef::Body), "");
     assert!(s.call("edit.advancedFind", &json!({"text": "x", "matchCase": true})).is_ok());
 }

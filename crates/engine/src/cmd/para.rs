@@ -185,7 +185,7 @@ pub fn specs() -> Vec<CommandSpec> {
         })
         .params(r#"{"level"?: 1-9 (none: body text)}"#),
         CommandSpec::new("para.set", "Set Paragraph Formatting", "Home › Paragraph › Paragraph", |s, v| {
-            let props: ParaProps = serde_json::from_value(v.get("props").cloned().unwrap_or(Value::Null)).map_err(|e| CmdError::Params(e.to_string()))?;
+            let props: ParaProps = serde_json::from_value(v.get("props").cloned().unwrap_or(Value::Null)).map_err(|e| super::props_error("props", "ParaProps", e))?;
             fmt(s, &|p| p.overlay(&props))
         })
         .params(r#"{"props": ParaProps}"#),
@@ -910,9 +910,10 @@ fn create_style(s: &mut Session, v: &Value) -> CmdResult {
 
 fn modify_style(s: &mut Session, v: &Value) -> CmdResult {
     let id = style_id(s, p::req_str(v, "style")?)?;
-    let chr: Option<CharProps> = v.get("chr").map(|c| serde_json::from_value(c.clone())).transpose().map_err(|e| CmdError::Params(e.to_string()))?;
+    let chr: Option<CharProps> =
+        v.get("chr").map(|c| serde_json::from_value(c.clone())).transpose().map_err(|e| super::props_error("chr", "CharProps", e))?;
     let para: Option<ParaProps> =
-        v.get("para").map(|c| serde_json::from_value(c.clone())).transpose().map_err(|e| CmdError::Params(e.to_string()))?;
+        v.get("para").map(|c| serde_json::from_value(c.clone())).transpose().map_err(|e| super::props_error("para", "ParaProps", e))?;
     let next = p::str(v, "next").map(str::to_string);
     let name = p::str(v, "name").map(str::to_string);
     let st = s.doc.styles.get_mut(&id).ok_or_else(|| CmdError::Params("no such style".into()))?;

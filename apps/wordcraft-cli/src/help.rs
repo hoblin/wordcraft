@@ -104,6 +104,10 @@ What the ids don't say:
   Letter page with 1-inch margins; layout.size and layout.margins change that.
 - insert.header and insert.footer put text in a header or footer; insert.editHeader moves the
   caret into it for further commands, insert.closeHeader moves it back.
+- text.newParagraph carries the formatting at the caret into the new paragraph, as Enter does in
+  Word: after a formatted heading, format.resetChar before typing goes back to the style's.
+- format.set, para.set and styles.modify take CharProps and ParaProps objects; `wordcraft-cli
+  help types` lists their fields.
 - --author names who tracked changes and comments are by.
 
 If a command fails, run stops there and saves nothing. Without --print, run ends with one line,
@@ -178,6 +182,7 @@ caret.docEnd to put the caret where the citation goes. --save writes the documen
 pub fn page(name: &str) -> Option<String> {
     let name = match name {
         "help" | "--help" | "-h" => return Some(overview()),
+        "types" => return Some(TYPES.to_string()),
         "--version" | "-V" => "version",
         name => name,
     };
@@ -193,10 +198,58 @@ pub fn overview() -> String {
          A document is edited by running commands on it:\n\n  \
          wordcraft-cli run --cmd 'text.insert={{\"text\":\"Hello\"}}' --save hello.docx\n\n\
          `wordcraft-cli help SUBCOMMAND`, or `wordcraft-cli SUBCOMMAND --help`, explains one subcommand;\n\
-         `wordcraft-cli help run` explains how to write a command.",
+         `wordcraft-cli help run` explains how to write a command; `wordcraft-cli help types` the objects some take.",
         list.join("\n")
     )
 }
+
+/// The objects some commands take, for `wordcraft-cli help types`.
+pub const TYPES: &str = "\
+The objects some commands take. Every field is optional: a field left out keeps what the style
+chain gives. Lengths are points; `color` is \"RRGGBB\", the other colours [r, g, b] (0–255).
+
+Pos, a position in the document (caret.set, select.range, document.paragraph):
+  {\"story\": \"body\" | {\"part\": id}, \"path\": [block] or [block, row, cell, paragraph], \"off\": byte offset}
+  {\"block\": n, \"off\": n} is a shorthand for a body paragraph. Blocks and offsets count from 0.
+
+CharProps (format.set {\"props\": …}, styles.modify {\"chr\": …}):
+  font, fontEa, fontCs      string, a font name
+  size, sizeCs              pt
+  bold, italic, strike, doubleStrike, caps, smallCaps, hidden, outline, shadow, emboss, engrave,
+  noProof, rtl, boldCs, italicCs
+                            bool
+  underline                 \"none|single|words|double|thick|dotted|dash|dotDash|dotDotDash|wave|doubleWave\"
+  underlineColor, shading   [r, g, b]
+  color                     \"RRGGBB\" or \"auto\"
+  highlight                 \"none|yellow|brightGreen|turquoise|pink|blue|red|darkBlue|teal|green|violet|darkRed|darkYellow|gray50|gray25|black|white\"
+  border                    Border
+  vertAlign                 \"baseline|superscript|subscript\"
+  spacing, position         pt (character spacing; raised or lowered)
+  scale                     percent, 100 = normal
+  kern                      pt, kern fonts at or above this size; 0 = off
+  style                     a character style id
+  lang, langBidi            a BCP 47 tag, e.g. \"fi-FI\"
+  link                      a URL, or \"#bookmark\"
+
+ParaProps (para.set {\"props\": …}, styles.modify {\"para\": …}):
+  align                     \"left|center|right|justify|distribute\"
+  indentLeft, indentRight   pt
+  indentFirst               pt; negative = hanging
+  spaceBefore, spaceAfter   pt
+  lineSpacing               {\"rule\": \"multiple\", \"value\": 1.15} | {\"rule\": \"atLeast\" | \"exactly\", \"value\": pt}
+  contextualSpacing, mirrorIndents, keepNext, keepLines, pageBreakBefore, widowControl,
+  suppressHyphens, suppressLineNumbers, bidi
+                            bool
+  outlineLevel              0–8 = Level 1–9, 9 = body text
+  numbering                 {\"num\": n, \"level\": n}; num 0 removes numbering a style gives
+  tabs                      [{\"pos\": pt, \"align\"?: \"left|center|right|decimal|bar|clear\", \"leader\"?: \"none|dot|hyphen|underscore|middleDot\"}]
+  shading                   [r, g, b]
+  borders                   {\"top\" | \"left\" | \"bottom\" | \"right\" | \"between\": Border}
+  dropCap                   lines to drop, 0 = none
+  style                     a paragraph style id
+
+Border: {\"style\": \"none|single|double|dotted|dashed|thick|triple|dotDash|wave\", \"width\": pt, \"color\": [r, g, b], \"space\": pt}
+  A border needs a width above 0 to show; space is the distance from the text.";
 
 fn first_word(usage: &str) -> &str {
     usage.split(' ').next().unwrap_or_default()

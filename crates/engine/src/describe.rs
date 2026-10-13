@@ -217,7 +217,7 @@ fn field_diff<T: Serialize>(what: &str, a: &T, b: &T) -> Vec<String> {
             out.push(format!("{k} {}", shown(v)));
         }
     }
-    for k in x.keys().filter(|k| !y.contains_key(*k)) {
+    for k in x.keys().filter(|k| !y.contains_key(*k) && !mirrored(k)) {
         out.push(format!("{k} cleared"));
     }
     match (what, list(&out)) {
@@ -318,7 +318,8 @@ fn shown(v: &Value) -> String {
         Value::Null => "none".into(),
         Value::Number(n) => match n.as_f64() {
             Some(f) if f.fract() == 0.0 && f.abs() < 1e15 => format!("{}", f as i64),
-            _ => n.to_string(),
+            Some(f) => format!("{f:.2}").trim_end_matches('0').trim_end_matches('.').to_string(),
+            None => n.to_string(),
         },
         Value::Object(m) if m.len() == 1 && m.contains_key("Rgb") => {
             match m["Rgb"].as_array().map(|a| a.iter().filter_map(Value::as_u64).collect::<Vec<_>>()) {

@@ -573,7 +573,8 @@ fn char_style(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn set(s: &mut Session, v: &Value) -> CmdResult {
-    let mut props: CharProps = serde_json::from_value(v.get("props").cloned().unwrap_or(Value::Null)).map_err(|e| CmdError::Params(e.to_string()))?;
+    let mut props: CharProps =
+        serde_json::from_value(v.get("props").cloned().unwrap_or(Value::Null)).map_err(|e| super::props_error("props", "CharProps", e))?;
     // The font dialog and callers supplying one value format both scripts. Explicit
     // complex-script values still take precedence; importing a DOCX never uses this command.
     props.size_cs = props.size_cs.or(props.size);

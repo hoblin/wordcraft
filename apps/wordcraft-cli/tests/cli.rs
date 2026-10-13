@@ -57,6 +57,7 @@ fn run_help_says_what_the_ids_do_not() {
         "format.* and para.* act on the selected text, else at the caret",
         "Sizes and distances are in points (72 pt = 1 inch); colours are \"RRGGBB\".",
         "If a command fails, run stops there and saves nothing.",
+        "text.newParagraph carries the formatting at the caret into the new paragraph",
         "OK: 6 commands ran, saved report.docx",
     ] {
         assert!(out.contains(fact), "missing: {fact}\n{out}");
@@ -92,6 +93,9 @@ fn describe_spells_out_a_command() {
     assert!(out.contains("  either:\n    pos               Pos\n    extend, optional  bool\n  or:\n    page              n\n"), "{out}");
     assert!(stdout(&cli(&["describe", "picture.size"])).contains("\nNeeds: select a picture or shape first.\n"));
     assert!(stdout(&cli(&["describe", "edit.advancedFind"])).contains("  and options of edit.find\n"));
+    assert!(stdout(&cli(&["describe", "styles.modify"])).contains("\nCharProps, ParaProps and Pos: `wordcraft-cli help types`.\n"));
+    let types = stdout(&cli(&["help", "types"]));
+    assert!(types.contains("CharProps (format.set") && types.contains("ParaProps (para.set") && types.contains("Pos, a position"), "{types}");
     assert_eq!(
         stderr(&cli(&["describe", "new"])),
         "wordcraft-cli: `new` is not a command; commands named like it: file.new, text.newParagraph, view.newWindow, table.newStyle, review.newComment, file.newFromTemplate.\n"

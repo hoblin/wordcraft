@@ -540,6 +540,9 @@ fn describe(spec: &wordcraft_engine::CommandSpec) -> String {
     if let Some(why) = (spec.enabled)(&blank()) {
         out += &format!("Needs: {why}.\n");
     }
+    if ["CharProps", "ParaProps", "Pos"].iter().any(|t| spec.params.contains(t)) {
+        out += "CharProps, ParaProps and Pos: `wordcraft-cli help types`.\n";
+    }
     out += &format!("\nRun it with: wordcraft-cli run {call}");
     out
 }
