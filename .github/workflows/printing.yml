@@ -1,5 +1,4 @@
-# Exercise the native print host and all UI tests on PRs; the broad FreeBSD/ARM64 gates
-# stay on their existing nightly/release schedule.
+# Exercise the native print host and all UI tests on PRs.
 name: Printing
 
 on:

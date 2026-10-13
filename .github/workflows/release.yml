@@ -2,23 +2,14 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing tag to release, e.g. v0.6.1-bondata.1"
-        type: string
-        required: true
+    tags: ["v*-bondata.*"]
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ inputs.tag || github.ref_name }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
-
-env:
-  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   linux:
@@ -29,10 +20,8 @@ jobs:
       CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
       CRAFT_FONTS_REQUIRED: "1"
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.TAG }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: storytold/craft-fonts
           ref: 8dcdacd5153e64560d109541a47d806f26f048c0
@@ -44,10 +33,10 @@ jobs:
             libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev \
             libasound2-dev pkg-config desktop-file-utils appstream
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: Build and package
         run: |
-          export WORDCRAFT_VERSION="${TAG#v}"
+          cargo xtask version set "${GITHUB_REF_NAME#v}"
           packaging/linux/package.sh --formats tar
       - name: Publish release
         env:
@@ -55,4 +44,4 @@ jobs:
         run: |
           cd dist/release
           sha256sum -- * > SHA256SUMS.txt
-          gh release create "$TAG" --title "WordCraft $TAG" --generate-notes -- *
+          gh release create "$GITHUB_REF_NAME" --title "WordCraft $GITHUB_REF_NAME" --generate-notes -- *
