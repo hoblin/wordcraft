@@ -437,6 +437,7 @@ pub fn specs() -> Vec<CommandSpec> {
             s.autosave = p::bool(v, "value").unwrap_or(!s.autosave);
             Ok(json!({"value": s.autosave}))
         })
+        .params(r#"{"value"?: bool}"#)
         .pure(),
         CommandSpec::new("file.compatibility", "Check Compatibility", "File › Info", |s, _| {
             let mut issues = Vec::new();
@@ -633,6 +634,7 @@ pub fn specs() -> Vec<CommandSpec> {
             s.relayout();
             Ok(json!({"value": s.view.show_markup}))
         })
+        .params(r#"{"value"?: bool}"#)
         .pure(),
         CommandSpec::new("review.editor", "Editor", "Home › Editor", |s, v| s.run("review.spelling", v)).pure(),
         CommandSpec::new("select.similar", "Select Text with Similar Formatting", "Home › Editing › Select", select_similar).pure(),
@@ -655,7 +657,8 @@ pub fn specs() -> Vec<CommandSpec> {
             s.doc.settings.theme_name =
                 format!("{} ({})", s.doc.settings.theme_name.split(" (").next().unwrap_or("Craft"), p::str(v, "name").unwrap_or("Subtle"));
             sel_result(s)
-        }),
+        })
+        .params(r#"{"name"?: string (default Subtle)}"#),
         CommandSpec::new("view.immersive", "Immersive Reader", "View › Immersive", |s, _| {
             s.view.read_mode = !s.view.read_mode;
             s.view.focus_mode = s.view.read_mode;

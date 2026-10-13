@@ -182,7 +182,8 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("para.outlineLevel", "Outline Level", "Home › Paragraph › Paragraph", |s, v| {
             let l = p::u64(v, "level").map(|x| x.min(9) as u8);
             fmt(s, &|p| p.outline_level = l)
-        }),
+        })
+        .params(r#"{"level"?: 1-9 (none: body text)}"#),
         CommandSpec::new("para.set", "Set Paragraph Formatting", "Home › Paragraph › Paragraph", |s, v| {
             let props: ParaProps = serde_json::from_value(v.get("props").cloned().unwrap_or(Value::Null)).map_err(|e| CmdError::Params(e.to_string()))?;
             fmt(s, &|p| p.overlay(&props))

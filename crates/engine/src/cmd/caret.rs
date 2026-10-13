@@ -59,6 +59,7 @@ pub fn specs() -> Vec<CommandSpec> {
             s.sel = Selection::caret(if to_end { b } else { a });
             sel_result(s)
         })
+        .params(r#"{"end"?: bool (collapse to the end; default the start)}"#)
         .key("Escape")
         .pure(),
     ]
