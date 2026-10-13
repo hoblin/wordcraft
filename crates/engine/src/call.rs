@@ -8,15 +8,13 @@ use crate::{CmdError, CommandSpec, Registry, Session, describe, params_doc};
 impl Session {
     /// Run command `id` for a caller outside the app. Parameters the command doesn't take are
     /// refused, an error says what is wrong and the form that works, and a command that answers
-    /// with the selection alone answers instead with what it changed, in words; a command that
-    /// changes the document and answers with JSON carries the same under `changed`.
+    /// with the selection alone answers instead with what it changed, in words; a mutating
+    /// command, or one that moved the selection, that answers with JSON carries the same under
+    /// `changed`.
     pub fn call(&mut self, id: &str, params: &Value) -> Result<Value, String> {
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(unknown_command(&reg, id)) };
         check_params(spec, params)?;
-        if let Some(why) = (spec.enabled)(self) {
-            return Err(not_available(id, why));
-        }
         let before = describe::Before::of(self);
         let sel = self.sel.clone();
         let r = self.run(id, params).map_err(|e| worded(spec, &e))?;
@@ -100,7 +98,7 @@ fn worded(spec: &CommandSpec, e: &CmdError) -> String {
     match e {
         CmdError::Params(msg) => bad_params(spec, msg),
         CmdError::Disabled(msg) => not_available(spec.id, msg.strip_prefix(&format!("{}: ", spec.id)).unwrap_or(msg)),
-        CmdError::Unknown(id) => format!("`{id}` is not a command"),
+        CmdError::Unknown(id) => format!("`{id}` is not a command."),
         CmdError::Failed(msg) => msg.clone(),
     }
 }
@@ -110,7 +108,8 @@ pub fn not_available(id: &str, why: &str) -> String {
     format!("`{id}` is not available right now: {}.{}", why.trim_end_matches('.'), how_to_enable(why))
 }
 
-fn how_to_enable(why: &str) -> &'static str {
+/// The call that makes a command its gate refuses for `why` available, as a sentence to append.
+pub fn how_to_enable(why: &str) -> &'static str {
     match why {
         "nothing is selected" => " select.text {\"text\": …}, select.paragraph or select.all selects.",
         "the cursor isn't in a table" => {

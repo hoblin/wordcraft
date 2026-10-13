@@ -13,8 +13,8 @@ Errors come back as `{"id": …, "ok": false, "error": "message"}`. A failed com
 document unchanged. For engine commands, `engine.execute` refuses parameters the command doesn't
 take, naming the ones it does. A command that answers with the selection alone answers instead
 with what it changed, in words, e.g. `"formatted paragraph 0: bold true"` or `"nothing changed"`;
-a command that changes the document and answers with JSON of its own carries the same under
-`changed`. A line that isn't valid JSON gets one error reply, then the server closes the
+a mutating command, or one that moved the selection, that answers with JSON of its own carries
+the same under `changed`. A line that isn't valid JSON gets one error reply, then the server closes the
 connection (so an HTTP request sent to the port can't run a command); reconnect to continue.
 
 ## Keys

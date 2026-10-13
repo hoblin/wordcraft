@@ -11,8 +11,6 @@ use std::process::ExitCode;
 use serde_json::{Value, json};
 use wordcraft_engine::Session;
 
-const TEMPLATES: [&str; 5] = ["blank", "sample", "letter", "resume", "report"];
-
 fn open(path: &str) -> Result<Session, String> {
     let doc = wordcraft_engine::io::open_path(std::path::Path::new(path)).map_err(|e| format!("can't open {e}"))?;
     let mut s = Session::new(doc);
@@ -25,8 +23,9 @@ fn blank() -> Session {
 }
 
 fn from_template(name: &str) -> Result<Session, String> {
-    if !TEMPLATES.contains(&name) {
-        return Err(format!("`{name}` is not a template: --template takes {}.", list(&TEMPLATES)));
+    let templates = wordcraft_engine::cmd::file::TEMPLATES;
+    if !templates.contains(&name) {
+        return Err(format!("`{name}` is not a template: --template takes {}.", list(&templates)));
     }
     let mut s = blank();
     s.call("file.new", &json!({"template": name}))?;
@@ -294,7 +293,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
             } else {
                 s.call("file.save", &json!({"path": o, "markup": markup}))
             };
-            r.map_err(|e| format!("can't write {o}: {e}"))?;
+            r?;
             write_stdout(|out| writeln!(out, "OK: wrote {o}"))
         }
         "info" => {
@@ -328,10 +327,8 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let reg = wordcraft_engine::cmd::registry();
             let steps = steps(&rest, &reg)?;
             let out = arg_value(&rest, "--save");
-            if out.is_some() {
-                page_number(&rest)?;
-                scale(&rest)?;
-            }
+            page_number(&rest)?;
+            scale(&rest)?;
             let mut s = match (arg_value(&rest, "--file"), arg_value(&rest, "--template")) {
                 (Some(f), _) => open(&f)?,
                 (None, Some(t)) => from_template(&t)?,
@@ -347,7 +344,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
                 save(&mut s, &rest, &out)?;
                 done.push(format!("saved {out}"));
             }
-            if print { Ok(()) } else { write_stdout(|o| writeln!(o, "OK: {}", done.join(", "))) }
+            write_stdout(|o| writeln!(o, "OK: {}", done.join(", ")))
         }
         "commands" => {
             validate_options("commands", &rest, COMMANDS_OPTIONS)?;
@@ -356,14 +353,14 @@ fn run(args: &[String]) -> Result<(), Failure> {
             let listed =
                 reg.all().iter().filter(|c| filter.is_empty() || c.id.to_lowercase().contains(&filter) || c.label.to_lowercase().contains(&filter));
             if rest.iter().any(|a| a == "--json") {
-                let ids: Vec<&str> = listed.map(|c| c.id).collect();
+                let ids: std::collections::HashSet<&str> = listed.map(|c| c.id).collect();
                 let list: Vec<Value> = reg
                     .describe()
                     .as_array()
                     .cloned()
                     .unwrap_or_default()
                     .into_iter()
-                    .filter(|c| ids.contains(&c["id"].as_str().unwrap_or_default()))
+                    .filter(|c| ids.contains(c["id"].as_str().unwrap_or_default()))
                     .collect();
                 let list = serde_json::to_string_pretty(&list).unwrap_or_default();
                 write_stdout(|o| writeln!(o, "{list}"))
@@ -530,7 +527,7 @@ fn describe(spec: &wordcraft_engine::CommandSpec) -> String {
             if !doc.answer.is_empty() {
                 out += &format!("Answers with {}.\n", doc.answer.trim_end_matches('.'));
             }
-            if doc.all_optional() { format!("--cmd {}", spec.id) } else { format!("--cmd '{}={{…}}'", spec.id) }
+            if doc.takes_nothing() { format!("--cmd {}", spec.id) } else { format!("--cmd '{}={{…}}'", spec.id) }
         }
         Err(_) => {
             out += &format!("\nParameters: {}\n", spec.params);
@@ -538,7 +535,7 @@ fn describe(spec: &wordcraft_engine::CommandSpec) -> String {
         }
     };
     if let Some(why) = (spec.enabled)(&blank()) {
-        out += &format!("Needs: {why}.\n");
+        out += &format!("Not available in a new document: {why}.{}\n", wordcraft_engine::call::how_to_enable(why));
     }
     if ["CharProps", "ParaProps", "Pos"].iter().any(|t| spec.params.contains(t)) {
         out += "CharProps, ParaProps and Pos: `wordcraft-cli help types`.\n";

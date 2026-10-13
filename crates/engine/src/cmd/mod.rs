@@ -130,7 +130,7 @@ pub fn pos_json(p: &Pos) -> Value {
 /// The error for a `CharProps` or `ParaProps` object (`kind`) under `key` that doesn't read as one.
 pub fn props_error(key: &str, kind: &str, e: serde_json::Error) -> CmdError {
     CmdError::Params(format!(
-        "`{key}` is not a {kind}: {e}. Lengths are points, `color` is \"RRGGBB\", other colours [r, g, b]; `help types` lists the fields"
+        "`{key}` is not a {kind}: {e}. Lengths are points, `color` is \"RRGGBB\", other colours [r, g, b]; `wordcraft-cli help types` and docs/mcp.md list the fields"
     ))
 }
 

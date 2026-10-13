@@ -19,6 +19,7 @@ pub fn specs() -> Vec<CommandSpec> {
             s.relayout();
             r
         })
+        .params(r#"{"value"?: bool}"#)
         .key("Mod+Shift+8 / Mod+8")
         .pure(),
         CommandSpec::new("view.printLayout", "Print Layout", "View › Views", |s, _| mode(s, ViewMode::Print, false)).key("Mod+Alt+P").pure(),

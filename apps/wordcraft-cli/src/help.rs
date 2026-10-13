@@ -111,7 +111,7 @@ What the ids don't say:
 - --author names who tracked changes and comments are by.
 
 If a command fails, run stops there and saves nothing. Without --print, run ends with one line,
-e.g. `OK: 6 commands ran, saved report.docx`; --print shows each command's answer instead: what
+e.g. `OK: 6 commands ran, saved report.docx`; --print shows each command's answer first: what
 it changed, or the JSON a command like document.inspect answers with.",
     },
     Subcommand {
@@ -208,9 +208,10 @@ pub const TYPES: &str = "\
 The objects some commands take. Every field is optional: a field left out keeps what the style
 chain gives. Lengths are points; `color` is \"RRGGBB\", the other colours [r, g, b] (0–255).
 
-Pos, a position in the document (caret.set, select.range, document.paragraph):
+Pos, a position in the document (caret.set, select.range):
   {\"story\": \"body\" | {\"part\": id}, \"path\": [block] or [block, row, cell, paragraph], \"off\": byte offset}
   {\"block\": n, \"off\": n} is a shorthand for a body paragraph. Blocks and offsets count from 0.
+  A Story on its own (document.paragraph, select.text) is \"body\" or {\"part\": id}.
 
 CharProps (format.set {\"props\": …}, styles.modify {\"chr\": …}):
   font, fontEa, fontCs      string, a font name

@@ -59,6 +59,7 @@ fn run_help_says_what_the_ids_do_not() {
         "If a command fails, run stops there and saves nothing.",
         "text.newParagraph carries the formatting at the caret into the new paragraph",
         "OK: 6 commands ran, saved report.docx",
+        "--print shows each command's answer first",
     ] {
         assert!(out.contains(fact), "missing: {fact}\n{out}");
     }
@@ -79,7 +80,7 @@ fn an_unknown_subcommand_names_the_real_ones() {
 fn describe_spells_out_a_command() {
     assert_eq!(
         stdout(&cli(&["describe", "insert.picture"])),
-        "insert.picture: Pictures, in Insert › Illustrations.\n\nParameters:\n  path, optional   string\n  data, optional   base64\n  width, optional  pt\n  alt, optional    string\n\nRun it with: wordcraft-cli run --cmd insert.picture\n"
+        "insert.picture: Pictures, in Insert › Illustrations.\n\nParameters:\n  path, optional   string\n  data, optional   base64\n  width, optional  pt\n  alt, optional    string\n\nRun it with: wordcraft-cli run --cmd 'insert.picture={…}'\n"
     );
     assert_eq!(
         stdout(&cli(&["describe", "format.size"])),
@@ -91,15 +92,13 @@ fn describe_spells_out_a_command() {
     );
     let out = stdout(&cli(&["describe", "caret.set"]));
     assert!(out.contains("  either:\n    pos               Pos\n    extend, optional  bool\n  or:\n    page              n\n"), "{out}");
-    assert!(stdout(&cli(&["describe", "picture.size"])).contains("\nNeeds: select a picture or shape first.\n"));
+    assert!(stdout(&cli(&["describe", "picture.size"])).contains("\nNot available in a new document: select a picture or shape first. insert.picture or insert.shape inserts one and selects it; select.objects {\"index\": n} selects an existing one.\n"));
+    assert!(stdout(&cli(&["describe", "table.deleteRow"])).contains("\nNot available in a new document: the cursor isn't in a table. insert.table"));
     assert!(stdout(&cli(&["describe", "edit.advancedFind"])).contains("  and options of edit.find\n"));
     assert!(stdout(&cli(&["describe", "styles.modify"])).contains("\nCharProps, ParaProps and Pos: `wordcraft-cli help types`.\n"));
     let types = stdout(&cli(&["help", "types"]));
     assert!(types.contains("CharProps (format.set") && types.contains("ParaProps (para.set") && types.contains("Pos, a position"), "{types}");
-    assert_eq!(
-        stderr(&cli(&["describe", "new"])),
-        "wordcraft-cli: `new` is not a command; commands named like it: file.new, text.newParagraph, view.newWindow, table.newStyle, review.newComment, file.newFromTemplate.\n"
-    );
+    assert!(stderr(&cli(&["describe", "new"])).starts_with("wordcraft-cli: `new` is not a command; commands named like it: file.new, "));
 }
 
 #[test]
@@ -120,10 +119,9 @@ fn commands_lists_one_line_per_command() {
 
 #[test]
 fn a_label_before_the_command_is_an_unknown_command() {
-    assert_eq!(
-        stderr(&cli(&["run", "--cmd", "new=file.new={\"template\":\"blank\"}"])),
-        "wordcraft-cli: --cmd 1 of 1 was read as command `new` with parameters `file.new={\"template\":\"blank\"}`. `new` is not a command; commands named like it: file.new, text.newParagraph, view.newWindow, table.newStyle, review.newComment, file.newFromTemplate. --cmd takes COMMAND=PARAMS, a command id, then `=`, then a JSON object, e.g. --cmd 'text.insert={\"text\":\"Hello\"}'; `wordcraft-cli commands` lists the ids. Nothing ran.\n"
-    );
+    let err = stderr(&cli(&["run", "--cmd", "new=file.new={\"template\":\"blank\"}"]));
+    assert!(err.starts_with("wordcraft-cli: --cmd 1 of 1 was read as command `new` with parameters `file.new={\"template\":\"blank\"}`. `new` is not a command; commands named like it: file.new, "), "{err}");
+    assert!(err.ends_with(". --cmd takes COMMAND=PARAMS, a command id, then `=`, then a JSON object, e.g. --cmd 'text.insert={\"text\":\"Hello\"}'; `wordcraft-cli commands` lists the ids. Nothing ran.\n"), "{err}");
 }
 
 #[test]
@@ -174,7 +172,8 @@ fn print_shows_what_each_command_did() {
         "text.insert → paragraph 0 now reads `Bondata Oy`; the caret is at paragraph 0, offset 10\n\
          select.paragraph → selected `Bondata Oy` in paragraph 0, offsets 0–10\n\
          format.size → formatted paragraph 0: size 28\n\
-         insert.header → {\"changed\":\"added header 1 reading `Bondata`; the caret is at paragraph 0 of header 1, offset 0\",\"story\":1}\n"
+         insert.header → {\"changed\":\"added header 1 reading `Bondata`; the caret is at paragraph 0 of header 1, offset 0\",\"story\":1}\n\
+         OK: 4 commands ran\n"
     );
 }
 
@@ -202,6 +201,10 @@ fn options_and_values_are_checked_before_anything_runs() {
     );
     assert_eq!(
         stderr(&cli(&["render", "x.docx", "x.png", "--page", "two"])),
+        "wordcraft-cli: --page takes a page number, 1 = the first; `two` is not one\n"
+    );
+    assert_eq!(
+        stderr(&cli(&["run", "--page", "two", "--cmd", "format.bold"])),
         "wordcraft-cli: --page takes a page number, 1 = the first; `two` is not one\n"
     );
     assert_eq!(

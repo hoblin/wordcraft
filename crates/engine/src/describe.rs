@@ -1,11 +1,12 @@
 //! What a command changed, in words, from the document and selection before it ran.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use serde::Serialize;
 use serde_json::Value;
 use wordcraft_doc::props::CharProps;
-use wordcraft_doc::{Block, Blocks, Document, InlineObject, Paragraph, Path, StoryRef};
+use wordcraft_doc::{Block, Blocks, Document, InlineObject, Paragraph, Path, Pos, StoryRef};
 
 use crate::{Selection, Session};
 
@@ -24,17 +25,15 @@ impl Before {
 pub(crate) fn changes(before: &Before, s: &Session) -> String {
     let (a, b) = (&before.doc, &s.doc);
     let mut said = vec![];
-    said.extend(blocks(&a.body, &b.body, ""));
+    let range = Range::of(&before.sel);
+    said.extend(blocks(&a.body, &b.body, "", range.filter(|r| r.story == StoryRef::Body)));
     let parts_changed = a.parts != b.parts;
-    said.extend(parts(a, b));
-    said.extend(
-        field_diff("page setup", &a.last_section, &b.last_section)
-            .into_iter()
-            .filter(|d| !parts_changed || !d.contains(": headers {") && !d.contains(": footers {")),
-    );
+    said.extend(parts(a, b, range));
+    let skip: &[&str] = if parts_changed { &["headers", "footers"] } else { &[] };
+    said.extend(field_diff("page setup", &a.last_section, &b.last_section, skip));
     said.extend(styles(a, b));
-    said.extend(field_diff("settings", &a.settings, &b.settings));
-    said.extend(field_diff("properties", &a.core, &b.core));
+    said.extend(field_diff("settings", &a.settings, &b.settings, &[]));
+    said.extend(field_diff("properties", &a.core, &b.core, &[]));
     if a.numbering != b.numbering {
         said.push("changed the list definitions".into());
     }
@@ -51,16 +50,38 @@ pub(crate) fn changes(before: &Before, s: &Session) -> String {
     if before.sel != s.sel {
         said.push(selection(s));
     }
-    if !document_changed && let Some(l) = list(&field_diff("", &before.typing, &s.typing_props())) {
+    if !document_changed && let Some(l) = list(&field_diff("", &before.typing, &s.typing_props(), &[])) {
         said.push(format!("typing will use {l}"));
     }
     if said.is_empty() { "nothing changed".into() } else { said.join("; ") }
 }
 
-fn blocks(a: &Blocks, b: &Blocks, place: &str) -> Vec<String> {
+#[derive(Clone, Copy)]
+struct Range {
+    story: StoryRef,
+    block: usize,
+    from: usize,
+    to: usize,
+}
+
+impl Range {
+    fn of(sel: &Selection) -> Option<Self> {
+        let (a, b): (Pos, Pos) = sel.ordered();
+        (a != b && a.path == b.path && a.path.0.len() == 1).then_some(Range { story: a.story, block: a.path.last(), from: a.off, to: b.off })
+    }
+}
+
+fn blocks(a: &Blocks, b: &Blocks, place: &str, range: Option<Range>) -> Vec<String> {
     let same = |x: &Arc<Block>, y: &Arc<Block>| Arc::ptr_eq(x, y) || x == y;
     if a.len() == b.len() {
-        return a.iter().zip(b).enumerate().filter(|(_, (x, y))| !same(x, y)).take(4).map(|(i, (x, y))| block_change(i, x, y, place)).collect();
+        return a
+            .iter()
+            .zip(b)
+            .enumerate()
+            .filter(|(_, (x, y))| !same(x, y))
+            .take(4)
+            .map(|(i, (x, y))| block_change(i, x, y, place, range.filter(|r| r.block == i)))
+            .collect();
     }
     let head = a.iter().zip(b).take_while(|(x, y)| same(x, y)).count();
     let tail = a.iter().rev().zip(b.iter().rev()).take(a.len().min(b.len()) - head).take_while(|(x, y)| same(x, y)).count();
@@ -88,9 +109,9 @@ fn kind(blocks: &[Arc<Block>]) -> &'static str {
     }
 }
 
-fn block_change(i: usize, a: &Block, b: &Block, place: &str) -> String {
+fn block_change(i: usize, a: &Block, b: &Block, place: &str, range: Option<Range>) -> String {
     match (a, b) {
-        (Block::Para(x), Block::Para(y)) => para_change(i, x, y, place),
+        (Block::Para(x), Block::Para(y)) => para_change(i, x, y, place, range),
         (_, Block::Table(t)) => {
             format!("changed the table at {} (now {} × {})", block_name(i, place), count(t.rows.len(), "row"), count(t.cols(), "column"))
         }
@@ -98,7 +119,7 @@ fn block_change(i: usize, a: &Block, b: &Block, place: &str) -> String {
     }
 }
 
-fn para_change(i: usize, a: &Paragraph, b: &Paragraph, place: &str) -> String {
+fn para_change(i: usize, a: &Paragraph, b: &Paragraph, place: &str, range: Option<Range>) -> String {
     let name = para_name(i, place);
     if a.text != b.text {
         let added: Vec<&InlineObject> = b.objects.iter().filter(|o| !a.objects.contains(o)).collect();
@@ -119,14 +140,17 @@ fn para_change(i: usize, a: &Paragraph, b: &Paragraph, place: &str) -> String {
         return format!("changed {} in {name}", objects(b.objects.iter().zip(&a.objects).filter(|(y, x)| x != y).map(|(y, _)| y)));
     }
     let mut what = run_diff(a, b);
-    what.extend(field_diff("", &a.props, &b.props));
+    what.extend(field_diff("", &a.props, &b.props, &[]));
     if let Some(l) = list(&what) {
-        return format!("formatted {name}: {l}");
+        return match range.filter(|r| r.from > 0 || r.to < a.text.len()).and_then(|r| a.text.get(r.from..r.to).map(|t| (t, r))) {
+            Some((text, r)) if a.runs != b.runs => format!("formatted {} in {name}, offsets {}–{}: {l}", quote(text), r.from, r.to),
+            _ => format!("formatted {name}: {l}"),
+        };
     }
     if a.section != b.section {
         return match (&a.section, &b.section) {
             (_, Some(sec)) => {
-                format!("section ending at {name}: {}", list(&field_diff("", &a.section.clone().unwrap_or_default(), sec)).unwrap_or_default())
+                format!("section ending at {name}: {}", list(&field_diff("", &a.section.clone().unwrap_or_default(), sec, &[])).unwrap_or_default())
             }
             _ => format!("removed the section break at {name}"),
         };
@@ -149,14 +173,13 @@ fn run_diff(a: &Paragraph, b: &Paragraph) -> Vec<String> {
         seen
     };
     let (x, y) = (props(a), props(b));
-    let mut keys: Vec<&String> = y.iter().chain(&x).map(|(k, _)| k).collect();
-    keys.dedup();
+    let keys: std::collections::BTreeSet<&String> = y.iter().chain(&x).map(|(k, _)| k).collect();
     let mirrored = |k: &str| k.strip_suffix("Cs").is_some_and(|base| keys.iter().any(|key| *key == base));
     let mut out = vec![];
     for k in keys.iter().filter(|k| !mirrored(k)) {
         let before: Vec<&Value> = x.iter().filter(|(key, _)| key == *k).map(|(_, v)| v).collect();
         let after: Vec<&Value> = y.iter().filter(|(key, _)| key == *k).map(|(_, v)| v).collect();
-        if before == after || out.iter().any(|o: &String| o.starts_with(&format!("{k} "))) {
+        if before == after {
             continue;
         }
         out.push(match after.as_slice() {
@@ -167,7 +190,7 @@ fn run_diff(a: &Paragraph, b: &Paragraph) -> Vec<String> {
     out
 }
 
-fn parts(a: &Document, b: &Document) -> Vec<String> {
+fn parts(a: &Document, b: &Document, range: Option<Range>) -> Vec<String> {
     let mut said = vec![];
     for (id, part) in &b.parts {
         match a.parts.get(id) {
@@ -179,7 +202,9 @@ fn parts(a: &Document, b: &Document) -> Vec<String> {
                     format!("added {} reading {}", part_name(b, *id), quote(text.trim_end()))
                 });
             }
-            Some(old) if old != part => said.extend(blocks(&old.blocks, &part.blocks, &part_name(b, *id))),
+            Some(old) if old != part => {
+                said.extend(blocks(&old.blocks, &part.blocks, &part_name(b, *id), range.filter(|r| r.story == StoryRef::Part(*id))))
+            }
             Some(_) => {}
         }
     }
@@ -207,17 +232,17 @@ fn styles(a: &Document, b: &Document) -> Vec<String> {
     said
 }
 
-fn field_diff<T: Serialize>(what: &str, a: &T, b: &T) -> Vec<String> {
+fn field_diff<T: Serialize>(what: &str, a: &T, b: &T, skip: &[&str]) -> Vec<String> {
     let map = |t: &T| serde_json::to_value(t).ok().and_then(|v| v.as_object().cloned()).unwrap_or_default();
     let (x, y) = (map(a), map(b));
     let mut out = vec![];
-    let mirrored = |k: &str| k.strip_suffix("Cs").is_some_and(|base| y.contains_key(base) || x.contains_key(base));
-    for (k, v) in y.iter().filter(|(k, _)| !mirrored(k)) {
+    let hidden = |k: &str| skip.contains(&k) || k.strip_suffix("Cs").is_some_and(|base| y.contains_key(base) || x.contains_key(base));
+    for (k, v) in y.iter().filter(|(k, _)| !hidden(k)) {
         if x.get(k) != Some(v) {
             out.push(format!("{k} {}", shown(v)));
         }
     }
-    for k in x.keys().filter(|k| !y.contains_key(*k) && !mirrored(k)) {
+    for k in x.keys().filter(|k| !y.contains_key(*k) && !hidden(k)) {
         out.push(format!("{k} cleared"));
     }
     match (what, list(&out)) {
@@ -287,11 +312,15 @@ fn part_name(doc: &Document, id: u32) -> String {
 }
 
 fn objects<'a>(it: impl Iterator<Item = &'a InlineObject>) -> String {
-    let names: Vec<&str> = it.map(object_name).collect();
-    match names.as_slice() {
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for o in it {
+        *counts.entry(object_name(o)).or_default() += 1;
+    }
+    let groups: Vec<String> = counts.iter().map(|(name, n)| if *n == 1 { format!("a {name}") } else { count(*n, name) }).collect();
+    match groups.as_slice() {
         [] => "an object".into(),
-        [one] => format!("a {one}"),
-        many => format!("{} objects ({})", many.len(), many.join(", ")),
+        [one] => one.clone(),
+        [head @ .., last] => format!("{} and {last}", head.join(", ")),
     }
 }
 

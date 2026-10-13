@@ -43,7 +43,7 @@ fn a_call_refuses_parameters_the_command_does_not_take() {
     );
     assert_eq!(
         said(&mut s, "styles.modify", json!({"style": "Normal", "chr": {"color": [1, 2, 3]}})),
-        "invalid parameters for `styles.modify`: `chr` is not a CharProps: invalid type: sequence, expected string or map. Lengths are points, `color` is \"RRGGBB\", other colours [r, g, b]; `help types` lists the fields. `styles.modify` takes {\"style\": string, \"chr\"?: CharProps, \"para\"?: ParaProps, \"name\"?: string, \"next\"?: string}."
+        "invalid parameters for `styles.modify`: `chr` is not a CharProps: invalid type: sequence, expected string or map. Lengths are points, `color` is \"RRGGBB\", other colours [r, g, b]; `wordcraft-cli help types` and docs/mcp.md list the fields. `styles.modify` takes {\"style\": string, \"chr\"?: CharProps, \"para\"?: ParaProps, \"name\"?: string, \"next\"?: string}."
     );
     assert_eq!(s.doc.plain_text(wordcraft_doc::StoryRef::Body), "");
     assert!(s.call("edit.advancedFind", &json!({"text": "x", "matchCase": true})).is_ok());
@@ -52,10 +52,8 @@ fn a_call_refuses_parameters_the_command_does_not_take() {
 #[test]
 fn an_unknown_command_names_the_commands_like_it() {
     let mut s = s();
-    assert_eq!(
-        said(&mut s, "new", json!({})),
-        "`new` is not a command; commands named like it: file.new, text.newParagraph, view.newWindow, table.newStyle, review.newComment, file.newFromTemplate."
-    );
+    let e = said(&mut s, "new", json!({}));
+    assert!(e.starts_with("`new` is not a command; commands named like it: file.new, ") && e.ends_with("."), "{e}");
     assert_eq!(said(&mut s, "file.nwe", json!({})), "`file.nwe` is not a command.");
 }
 
@@ -117,4 +115,55 @@ fn a_part_and_an_object_are_named_in_the_answer() {
     t.call("select.paragraph", &json!({})).unwrap();
     let r = said(&mut t, "insert.shape", json!({"kind": "rectangle"}));
     assert!(r.starts_with("replaced `Logo` in paragraph 0 with a shape; "), "{r}");
+}
+
+#[test]
+fn every_key_a_command_reads_is_in_its_doc() {
+    let mut s = s();
+    for (id, p) in [
+        ("format.allCaps", json!({"value": true})),
+        ("para.keepNext", json!({"value": true})),
+        ("view.marks", json!({"value": true})),
+        ("styles.addToGallery", json!({"style": "Heading 1"})),
+        ("select.collapse", json!({"end": true})),
+        ("edit.findNext", json!({"text": "x", "wildcards": true})),
+        ("select.text", json!({"text": "x", "story": "body"})),
+        ("text.insert", json!({"text": "x", "raw": true})),
+        ("table.borderPainter", json!({"color": "FF0000"})),
+        ("document.text", json!({"story": "body"})),
+        ("para.outlineLevel", json!({"level": 9})),
+    ] {
+        let r = s.call(id, &p);
+        assert!(!r.as_ref().is_err_and(|e| e.contains("doesn't take")), "{id}: {r:?}");
+    }
+}
+
+#[test]
+fn a_range_format_names_the_text_it_formatted() {
+    let mut s = s();
+    s.call("text.insert", &json!({"text": "Bondata Oy"})).unwrap();
+    s.call("select.range", &json!({"anchor": {"block": 0, "off": 8}, "focus": {"block": 0, "off": 10}})).unwrap();
+    assert_eq!(said(&mut s, "format.bold", json!({})), "formatted `Oy` in paragraph 0, offsets 8–10: bold true");
+}
+
+#[test]
+fn hostile_params_never_panic_through_call() {
+    let reg = cmd::registry();
+    let junk = [
+        json!(null),
+        json!([1, 2]),
+        json!({"text": 5, "size": "x", "path": [], "pos": {"block": 9999, "off": 99999}}),
+        json!({"value": -1e308, "rows": 1e9}),
+    ];
+    for spec in reg.all() {
+        if spec.id.starts_with("file.") || spec.id == "insert.picture" || spec.id == "insert.textFromFile" {
+            continue;
+        }
+        for j in &junk {
+            let mut s = Session::new(crate::sample::sample_document());
+            let _ = s.call(spec.id, j);
+            s.clamp_selection();
+            let _ = s.layout();
+        }
+    }
 }

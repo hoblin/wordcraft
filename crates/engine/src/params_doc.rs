@@ -1,6 +1,6 @@
 //! The params doc of a command, read as data: `{"text": string, "occurrence"?: n}` names the
-//! keys a command takes, `?` marks an optional one, a spaced ` | ` between objects separates
-//! alternative parameter sets, `…` elides keys listed elsewhere, `→` starts the answer, and text
+//! keys a command takes, `?` marks an optional one, `|` between objects separates alternative
+//! parameter sets, `…` elides keys listed elsewhere, `→` starts the answer, and text
 //! after the objects is a remark.
 
 /// One parameter of a params doc.
